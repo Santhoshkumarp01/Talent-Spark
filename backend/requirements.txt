@@ -1,0 +1,11 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+google-cloud-firestore==2.13.1
+google-cloud-storage==2.10.0
+pydantic==2.5.0
+python-jose[cryptography]==3.3.0
+python-decouple==3.8
+pillow==10.1.0
+opencv-python==4.8.1.78
+hashlib2==1.0.2
