@@ -1,103 +1,90 @@
 import React, { useState, useEffect } from 'react'
-
-interface AssessmentRecord {
-  id: string
-  timestamp: number
-  profileData: any
-  selectedWorkout: string
-  analysisResults: any
-  grade: string
-  faceVerificationPassed: boolean
-  submittedAt: string
-}
+import { GameManager } from '../../components/gamification/GameManager'
 
 interface DashboardProps {
   onBack: () => void
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
-  const [assessments, setAssessments] = useState<AssessmentRecord[]>([])
-  const [selectedAssessment, setSelectedAssessment] = useState<AssessmentRecord | null>(null)
-  const [filter, setFilter] = useState<'all' | 'passed' | 'failed'>('all')
+  const [assessments, setAssessments] = useState<any[]>([])
+  const [selectedAssessment, setSelectedAssessment] = useState<any>(null)
+  const [filter, setFilter] = useState('all')
+  const [leaderboardData, setLeaderboardData] = useState<any[]>([])
+  const [gamificationStats, setGamificationStats] = useState({
+    totalUsers: 0,
+    totalBadges: 0,
+    topPerformer: '',
+    averageGrade: 'B'
+  })
 
   useEffect(() => {
     loadAssessments()
+    loadLeaderboardData()
   }, [])
 
   const loadAssessments = () => {
-    const allAssessments: AssessmentRecord[] = []
+    const allAssessments: any[] = []
     
-    // Load from localStorage
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
       if (key?.startsWith('assessment_')) {
         try {
           const data = JSON.parse(localStorage.getItem(key)!)
-          allAssessments.push({
-            id: key,
-            ...data
-          })
+          allAssessments.push({ id: key, ...data })
         } catch (error) {
           console.error('Error parsing assessment:', error)
         }
       }
     }
     
-    // Sort by timestamp (newest first)
     allAssessments.sort((a, b) => b.timestamp - a.timestamp)
     setAssessments(allAssessments)
   }
 
-  const deleteAssessment = (id: string) => {
+  const loadLeaderboardData = () => {
+    const leaderboard = GameManager.getLeaderboard()
+    setLeaderboardData(leaderboard.slice(0, 10)) // Top 10 for admin view
+    
+    // Calculate gamification stats
+    const totalBadges = leaderboard.reduce((sum, user) => sum + user.badges.length, 0)
+    const grades = leaderboard.map(user => user.grade)
+    const gradeValues = { 'A+': 4.3, 'A': 4.0, 'B+': 3.3, 'B': 3.0, 'C+': 2.3, 'C': 2.0, 'D': 1.0, 'F': 0 }
+    const avgGradeValue = grades.reduce((sum, grade) => sum + (gradeValues[grade] || 0), 0) / grades.length
+    const avgGrade = Object.keys(gradeValues).find(key => Math.abs(gradeValues[key] - avgGradeValue) < 0.2) || 'B'
+    
+    setGamificationStats({
+      totalUsers: leaderboard.length,
+      totalBadges,
+      topPerformer: leaderboard[0]?.name || 'No data',
+      averageGrade: avgGrade
+    })
+  }
+
+  const getGradeColor = (grade: string): string => {
+    const colors = {
+      'A+': '#00ff41', 'A': '#00d2ff', 'B+': '#feca57',
+      'B': '#ff9ff3', 'C+': '#ff6b6b', 'C': '#ff9f43', 'D': '#95a5a6', 'F': '#ff4757'
+    }
+    return colors[grade] || '#95a5a6'
+  }
+
+  const deleteAssessment = (assessmentId: string) => {
     if (confirm('Are you sure you want to delete this assessment?')) {
-      localStorage.removeItem(id)
+      localStorage.removeItem(assessmentId)
       loadAssessments()
-      if (selectedAssessment?.id === id) {
+      loadLeaderboardData()
+      if (selectedAssessment?.id === assessmentId) {
         setSelectedAssessment(null)
       }
     }
   }
 
-  const exportData = () => {
-    const dataStr = JSON.stringify(assessments, null, 2)
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr)
-    
-    const exportFileDefaultName = `assessments_${new Date().toISOString().slice(0,10)}.json`
-    
-    const linkElement = document.createElement('a')
-    linkElement.setAttribute('href', dataUri)
-    linkElement.setAttribute('download', exportFileDefaultName)
-    linkElement.click()
-  }
-
-  const clearAllData = () => {
-    if (confirm('Are you sure you want to delete ALL assessment data? This cannot be undone.')) {
-      const keysToDelete = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key?.startsWith('assessment_')) {
-          keysToDelete.push(key)
-        }
-      }
-      keysToDelete.forEach(key => localStorage.removeItem(key))
-      loadAssessments()
-      setSelectedAssessment(null)
-    }
-  }
-
   const filteredAssessments = assessments.filter(assessment => {
-    if (filter === 'passed') return assessment.faceVerificationPassed
-    if (filter === 'failed') return !assessment.faceVerificationPassed
+    if (filter === 'all') return true
+    if (filter === 'verified') return assessment.faceVerificationPassed
+    if (filter === 'pending') return !assessment.faceVerificationPassed
     return true
   })
-
-  const getGradeColor = (grade: string) => {
-    const colors = {
-      'A+': '#00ff41', 'A': '#00d2ff', 'B+': '#feca57',
-      'B': '#ff9ff3', 'C+': '#ff6b6b', 'C': '#ff9f43', 'F': '#ff4757', 'D': '#95a5a6'
-    }
-    return colors[grade] || '#95a5a6'
-  }
 
   return (
     <div style={{ 
@@ -126,57 +113,23 @@ const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
             </p>
           </div>
           
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <button
-              onClick={exportData}
-              style={{
-                background: 'linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%)',
-                color: 'white',
-                border: 'none',
-                padding: '1rem 1.5rem',
-                borderRadius: '15px',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                fontWeight: 'bold'
-              }}
-            >
-              📤 Export Data
-            </button>
-            
-            <button
-              onClick={clearAllData}
-              style={{
-                background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)',
-                color: 'white',
-                border: 'none',
-                padding: '1rem 1.5rem',
-                borderRadius: '15px',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                fontWeight: 'bold'
-              }}
-            >
-              🗑️ Clear All
-            </button>
-            
-            <button
-              onClick={onBack}
-              style={{
-                background: 'rgba(255,255,255,0.2)',
-                color: 'white',
-                border: 'none',
-                padding: '1rem 1.5rem',
-                borderRadius: '15px',
-                cursor: 'pointer',
-                fontSize: '1rem'
-              }}
-            >
-              ← Back to App
-            </button>
-          </div>
+          <button
+            onClick={onBack}
+            style={{
+              background: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              border: 'none',
+              padding: '1rem 1.5rem',
+              borderRadius: '15px',
+              cursor: 'pointer',
+              fontSize: '1rem'
+            }}
+          >
+            ← Back to App
+          </button>
         </div>
 
-        {/* Stats Cards */}
+        {/* Quick Stats */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -191,10 +144,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
             border: '1px solid rgba(0,210,255,0.3)'
           }}>
             <div style={{ fontSize: '2rem', color: '#00d2ff', marginBottom: '0.5rem' }}>📊</div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white', marginBottom: '0.3rem' }}>
+            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white' }}>
               {assessments.length}
             </div>
-            <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem' }}>Total Assessments</div>
+            <div style={{ color: 'rgba(255,255,255,0.8)' }}>Total Assessments</div>
           </div>
 
           <div style={{
@@ -205,24 +158,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
             border: '1px solid rgba(0,255,65,0.3)'
           }}>
             <div style={{ fontSize: '2rem', color: '#00ff41', marginBottom: '0.5rem' }}>✅</div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white', marginBottom: '0.3rem' }}>
+            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white' }}>
               {assessments.filter(a => a.faceVerificationPassed).length}
             </div>
-            <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem' }}>Face Verified</div>
-          </div>
-
-          <div style={{
-            background: 'rgba(255,107,107,0.2)',
-            borderRadius: '15px',
-            padding: '1.5rem',
-            textAlign: 'center',
-            border: '1px solid rgba(255,107,107,0.3)'
-          }}>
-            <div style={{ fontSize: '2rem', color: '#ff6b6b', marginBottom: '0.5rem' }}>⚠️</div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white', marginBottom: '0.3rem' }}>
-              {assessments.filter(a => !a.faceVerificationPassed).length}
-            </div>
-            <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem' }}>Face Failed</div>
+            <div style={{ color: 'rgba(255,255,255,0.8)' }}>Verified</div>
           </div>
 
           <div style={{
@@ -232,73 +171,191 @@ const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
             textAlign: 'center',
             border: '1px solid rgba(254,202,87,0.3)'
           }}>
-            <div style={{ fontSize: '2rem', color: '#feca57', marginBottom: '0.5rem' }}>⭐</div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white', marginBottom: '0.3rem' }}>
-              {assessments.length > 0 
-                ? (assessments.reduce((sum, a) => sum + (a.analysisResults?.formScore || 0), 0) / assessments.length).toFixed(1)
-                : 0
-              }%
+            <div style={{ fontSize: '2rem', color: '#feca57', marginBottom: '0.5rem' }}>⏳</div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white' }}>
+              {assessments.filter(a => !a.faceVerificationPassed).length}
             </div>
-            <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem' }}>Avg Form Score</div>
+            <div style={{ color: 'rgba(255,255,255,0.8)' }}>Pending Review</div>
+          </div>
+
+          <div style={{
+            background: 'rgba(255,107,107,0.2)',
+            borderRadius: '15px',
+            padding: '1.5rem',
+            textAlign: 'center',
+            border: '1px solid rgba(255,107,107,0.3)'
+          }}>
+            <div style={{ fontSize: '2rem', color: '#ff6b6b', marginBottom: '0.5rem' }}>📈</div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white' }}>
+              {gamificationStats.averageGrade}
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.8)' }}>Average Grade</div>
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Gamification Overview */}
         <div style={{
           background: 'rgba(255,255,255,0.1)',
-          borderRadius: '15px',
-          padding: '1rem',
+          backdropFilter: 'blur(10px)',
+          borderRadius: '20px',
+          padding: '2rem',
           marginBottom: '2rem',
-          display: 'flex',
-          gap: '1rem',
-          alignItems: 'center',
-          flexWrap: 'wrap'
+          border: '1px solid rgba(255,255,255,0.2)'
         }}>
-          <span style={{ color: 'white', fontWeight: 'bold' }}>Filter:</span>
-          {(['all', 'passed', 'failed'] as const).map(filterType => (
-            <button
-              key={filterType}
-              onClick={() => setFilter(filterType)}
-              style={{
-                background: filter === filterType 
-                  ? 'linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%)'
-                  : 'rgba(255,255,255,0.1)',
-                color: 'white',
-                border: 'none',
-                padding: '0.5rem 1rem',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                textTransform: 'capitalize',
-                fontSize: '0.9rem'
-              }}
-            >
-              {filterType} ({
-                filterType === 'all' ? assessments.length :
-                filterType === 'passed' ? assessments.filter(a => a.faceVerificationPassed).length :
-                assessments.filter(a => !a.faceVerificationPassed).length
-              })
-            </button>
-          ))}
+          <h2 style={{ color: 'white', marginBottom: '1.5rem', textAlign: 'center' }}>
+            🎮 Gamification Overview
+          </h2>
+          
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1rem',
+            marginBottom: '2rem'
+          }}>
+            <div style={{
+              background: 'rgba(0,210,255,0.2)',
+              borderRadius: '15px',
+              padding: '1.5rem',
+              textAlign: 'center',
+              border: '1px solid rgba(0,210,255,0.3)'
+            }}>
+              <div style={{ fontSize: '2rem', color: '#00d2ff', marginBottom: '0.5rem' }}>👥</div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white' }}>
+                {gamificationStats.totalUsers}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem' }}>Active Competitors</div>
+            </div>
+
+            <div style={{
+              background: 'rgba(254,202,87,0.2)',
+              borderRadius: '15px',
+              padding: '1.5rem',
+              textAlign: 'center',
+              border: '1px solid rgba(254,202,87,0.3)'
+            }}>
+              <div style={{ fontSize: '2rem', color: '#feca57', marginBottom: '0.5rem' }}>🏅</div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white' }}>
+                {gamificationStats.totalBadges}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem' }}>Total Badges Earned</div>
+            </div>
+
+            <div style={{
+              background: 'rgba(0,255,65,0.2)',
+              borderRadius: '15px',
+              padding: '1.5rem',
+              textAlign: 'center',
+              border: '1px solid rgba(0,255,65,0.3)'
+            }}>
+              <div style={{ fontSize: '2rem', color: '#00ff41', marginBottom: '0.5rem' }}>🏆</div>
+              <div style={{ fontSize: '1rem', fontWeight: 'bold', color: 'white', marginBottom: '0.3rem' }}>
+                {gamificationStats.topPerformer}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem' }}>Top Performer</div>
+            </div>
+          </div>
+          
+          {/* Top Performers Leaderboard */}
+          {leaderboardData.length > 0 && (
+            <div>
+              <h3 style={{ color: 'white', marginBottom: '1rem' }}>🏆 Top 10 Performers</h3>
+              <div style={{
+                display: 'grid',
+                gap: '0.5rem',
+                maxHeight: '400px',
+                overflowY: 'auto'
+              }}>
+                {leaderboardData.map((user, index) => (
+                  <div
+                    key={user.userId}
+                    style={{
+                      background: index < 3 
+                        ? `linear-gradient(135deg, ${getGradeColor(user.grade)}20 0%, ${getGradeColor(user.grade)}10 100%)`
+                        : 'rgba(255,255,255,0.05)',
+                      borderRadius: '10px',
+                      padding: '1rem',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      border: index < 3 
+                        ? `1px solid ${getGradeColor(user.grade)}40`
+                        : '1px solid rgba(255,255,255,0.1)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <span style={{ 
+                        fontSize: index < 3 ? '1.3rem' : '1rem',
+                        color: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : 'white',
+                        minWidth: '2.5rem'
+                      }}>
+                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+                      </span>
+                      <div>
+                        <div style={{ color: 'white', fontWeight: 'bold', fontSize: '1rem' }}>
+                          {user.name}
+                        </div>
+                        <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.8rem' }}>
+                          {user.totalAssessments} tests • Grade: {user.grade}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ color: 'white', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                        {user.overallScore.toLocaleString()}
+                      </div>
+                      <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.8rem' }}>
+                        {user.badges.length} badges
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Assessments List */}
+        {/* Assessment Records */}
         <div style={{
           background: 'rgba(255,255,255,0.1)',
           backdropFilter: 'blur(10px)',
           borderRadius: '20px',
           padding: '2rem'
         }}>
-          <h2 style={{ color: 'white', marginBottom: '1.5rem' }}>📋 Assessment Records ({filteredAssessments.length})</h2>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '1.5rem'
+          }}>
+            <h2 style={{ color: 'white', margin: 0 }}>📋 Assessment Records ({filteredAssessments.length})</h2>
+            
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.3)',
+                padding: '0.5rem 1rem',
+                borderRadius: '10px',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="all">All Assessments</option>
+              <option value="verified">Verified Only</option>
+              <option value="pending">Pending Review</option>
+            </select>
+          </div>
           
           {filteredAssessments.length === 0 ? (
             <div style={{ 
               textAlign: 'center', 
               color: 'rgba(255,255,255,0.8)', 
-              fontSize: '1.1rem', 
+              fontSize: '1.1rem',
               padding: '3rem'
             }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📭</div>
-              No assessments found for "{filter}" filter
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📊</div>
+              No assessments found. Complete some assessments to see data here.
             </div>
           ) : (
             <div style={{ display: 'grid', gap: '1rem' }}>
@@ -306,176 +363,181 @@ const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
                 <div
                   key={assessment.id}
                   style={{
-                    background: 'rgba(255,255,255,0.1)',
+                    background: selectedAssessment?.id === assessment.id 
+                      ? 'rgba(0,210,255,0.2)' 
+                      : 'rgba(255,255,255,0.05)',
                     borderRadius: '15px',
                     padding: '1.5rem',
                     border: selectedAssessment?.id === assessment.id 
                       ? '2px solid #00d2ff' 
-                      : '1px solid rgba(255,255,255,0.2)',
+                      : '1px solid rgba(255,255,255,0.1)',
+                    cursor: 'pointer',
                     transition: 'all 0.3s ease'
                   }}
+                  onClick={() => setSelectedAssessment(assessment)}
                 >
-                  <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 100px',
-                    gap: '1rem',
-                    alignItems: 'center'
-                  }}>
-                    <div>
-                      <div style={{ color: 'white', fontWeight: 'bold', fontSize: '1.1rem' }}>
-                        {assessment.profileData?.name || 'Unknown User'}
-                      </div>
-                      <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem' }}>
-                        {new Date(assessment.timestamp).toLocaleDateString()} • {new Date(assessment.timestamp).toLocaleTimeString()}
-                      </div>
-                      <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem' }}>
-                        {assessment.profileData?.age}y • {assessment.profileData?.gender} • {assessment.profileData?.height}cm • {assessment.profileData?.weight}kg
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ 
-                        color: getGradeColor(assessment.grade), 
-                        fontSize: '1.8rem',
-                        fontWeight: 'bold',
-                        marginBottom: '0.2rem'
-                      }}>
-                        {assessment.grade}
-                      </div>
-                      <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.8rem' }}>
-                        Grade
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ color: 'white', fontWeight: 'bold', fontSize: '1.2rem' }}>
-                        {assessment.analysisResults?.totalReps || 0}
-                      </div>
-                      <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.8rem' }}>
-                        {assessment.selectedWorkout} reps
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ color: 'white', fontWeight: 'bold', fontSize: '1.2rem' }}>
-                        {assessment.analysisResults?.formScore || 0}%
-                      </div>
-                      <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.8rem' }}>
-                        Form Score
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ flex: 1 }}>
                       <div style={{
-                        color: assessment.faceVerificationPassed ? '#00ff41' : '#ff6b6b',
-                        fontSize: '1.2rem',
-                        marginBottom: '0.2rem'
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '1rem',
+                        marginBottom: '0.5rem'
                       }}>
-                        {assessment.faceVerificationPassed ? '✅' : '❌'}
+                        <span style={{
+                          color: getGradeColor(assessment.grade),
+                          fontSize: '1.5rem',
+                          fontWeight: 'bold',
+                          minWidth: '2rem'
+                        }}>
+                          {assessment.grade}
+                        </span>
+                        <div>
+                          <div style={{ color: 'white', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                            {assessment.profileData.name}
+                          </div>
+                          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem' }}>
+                            {assessment.selectedWorkout.charAt(0).toUpperCase() + assessment.selectedWorkout.slice(1)} • {' '}
+                            {new Date(assessment.timestamp).toLocaleDateString()}
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.8rem' }}>
-                        {assessment.analysisResults?.faceVerification?.confidence || 0}%
+                      
+                      <div style={{
+                        display: 'flex',
+                        gap: '2rem',
+                        color: 'rgba(255,255,255,0.8)',
+                        fontSize: '0.9rem'
+                      }}>
+                        <span>🔢 {assessment.analysisResults?.totalReps || 0} reps</span>
+                        <span>✨ {assessment.analysisResults?.formScore || 0}% form</span>
+                        <span>💎 {assessment.pointsEarned || 0} points</span>
+                        <span>🏅 {assessment.badgesEarned?.length || 0} badges</span>
                       </div>
                     </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <button
-                        onClick={() => setSelectedAssessment(
-                          selectedAssessment?.id === assessment.id ? null : assessment
-                        )}
-                        style={{
-                          background: 'linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%)',
-                          color: 'white',
-                          border: 'none',
-                          padding: '0.5rem',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          fontSize: '0.8rem'
-                        }}
-                      >
-                        {selectedAssessment?.id === assessment.id ? 'Hide' : 'View'}
-                      </button>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div style={{
+                        padding: '0.5rem 1rem',
+                        borderRadius: '10px',
+                        fontSize: '0.8rem',
+                        fontWeight: 'bold',
+                        background: assessment.faceVerificationPassed 
+                          ? 'rgba(0,255,65,0.2)' 
+                          : 'rgba(255,202,87,0.2)',
+                        color: assessment.faceVerificationPassed ? '#00ff41' : '#feca57',
+                        border: assessment.faceVerificationPassed 
+                          ? '1px solid rgba(0,255,65,0.3)' 
+                          : '1px solid rgba(255,202,87,0.3)'
+                      }}>
+                        {assessment.faceVerificationPassed ? '✅ Verified' : '⏳ Pending'}
+                      </div>
                       
                       <button
-                        onClick={() => deleteAssessment(assessment.id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteAssessment(assessment.id)
+                        }}
                         style={{
-                          background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)',
-                          color: 'white',
-                          border: 'none',
+                          background: 'rgba(255,107,107,0.2)',
+                          color: '#ff6b6b',
+                          border: '1px solid rgba(255,107,107,0.3)',
                           padding: '0.5rem',
                           borderRadius: '8px',
                           cursor: 'pointer',
-                          fontSize: '0.8rem'
+                          fontSize: '0.9rem'
                         }}
                       >
-                        Delete
+                        🗑️
                       </button>
                     </div>
                   </div>
-
-                  {/* Expanded Details */}
-                  {selectedAssessment?.id === assessment.id && (
-                    <div style={{
-                      marginTop: '1.5rem',
-                      padding: '1.5rem',
-                      background: 'rgba(0,0,0,0.3)',
-                      borderRadius: '15px',
-                      borderTop: '2px solid #00d2ff'
-                    }}>
-                      <h4 style={{ color: 'white', marginBottom: '1rem' }}>📄 Detailed Analysis</h4>
-                      
-                      <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                        gap: '1rem',
-                        color: 'white',
-                        marginBottom: '1rem'
-                      }}>
-                        <div>
-                          <strong>📊 Performance Metrics:</strong>
-                          <div style={{ marginLeft: '1rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.8)' }}>
-                            • Total Reps: {assessment.analysisResults?.totalReps || 0}
-                            <br/>• Average Depth: {assessment.analysisResults?.averageDepth || 0}%
-                            <br/>• Form Score: {assessment.analysisResults?.formScore || 0}%
-                            <br/>• Duration: {assessment.analysisResults?.duration || 0}s
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <strong>🎯 AI Detection:</strong>
-                          <div style={{ marginLeft: '1rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.8)' }}>
-                            • Poses Detected: {assessment.analysisResults?.posesDetected || 0}/{assessment.analysisResults?.totalFrames || 0}
-                            <br/>• Detection Rate: {assessment.analysisResults?.totalFrames > 0 ? Math.round((assessment.analysisResults?.posesDetected || 0) / assessment.analysisResults.totalFrames * 100) : 0}%
-                            <br/>• Workout Type: {assessment.selectedWorkout}
-                            <br/>• Submitted: {new Date(assessment.submittedAt).toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <details style={{ marginTop: '1rem' }}>
-                        <summary style={{ color: 'white', cursor: 'pointer', fontSize: '0.9rem' }}>
-                          🔍 Raw Data (Click to expand)
-                        </summary>
-                        <pre style={{ 
-                          color: 'rgba(255,255,255,0.7)', 
-                          fontSize: '0.7rem',
-                          maxHeight: '200px',
-                          overflow: 'auto',
-                          background: 'rgba(0,0,0,0.5)',
-                          padding: '1rem',
-                          borderRadius: '10px',
-                          marginTop: '0.5rem'
-                        }}>
-                          {JSON.stringify(assessment, null, 2)}
-                        </pre>
-                      </details>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
+        
+        {/* Selected Assessment Details */}
+        {selectedAssessment && (
+          <div style={{
+            background: 'rgba(0,210,255,0.1)',
+            borderRadius: '20px',
+            padding: '2rem',
+            marginTop: '2rem',
+            border: '2px solid rgba(0,210,255,0.3)'
+          }}>
+            <h3 style={{ color: '#00d2ff', marginBottom: '1.5rem' }}>
+              📊 Assessment Details - {selectedAssessment.profileData.name}
+            </h3>
+            
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '1rem',
+              marginBottom: '2rem'
+            }}>
+              <div style={{ color: 'white' }}>
+                <strong>Personal Info:</strong><br/>
+                Age: {selectedAssessment.profileData.age}<br/>
+                Gender: {selectedAssessment.profileData.gender}<br/>
+                Height: {selectedAssessment.profileData.height}cm<br/>
+                Weight: {selectedAssessment.profileData.weight}kg
+              </div>
+              
+              <div style={{ color: 'white' }}>
+                <strong>Performance:</strong><br/>
+                Reps: {selectedAssessment.analysisResults?.totalReps || 0}<br/>
+                Form Score: {selectedAssessment.analysisResults?.formScore || 0}%<br/>
+                Average Depth: {selectedAssessment.analysisResults?.averageDepth || 0}%<br/>
+                Grade: <span style={{ color: getGradeColor(selectedAssessment.grade) }}>{selectedAssessment.grade}</span>
+              </div>
+              
+              <div style={{ color: 'white' }}>
+                <strong>Verification:</strong><br/>
+                Face Match: {selectedAssessment.analysisResults?.faceVerification?.confidence || 0}%<br/>
+                Status: {selectedAssessment.faceVerificationPassed ? '✅ Verified' : '⏳ Pending'}<br/>
+                Submitted: {new Date(selectedAssessment.timestamp).toLocaleString()}
+              </div>
+
+              <div style={{ color: 'white' }}>
+                <strong>Gamification:</strong><br/>
+                Points Earned: {selectedAssessment.pointsEarned || 0}<br/>
+                Total Score: {selectedAssessment.overallScore || 0}<br/>
+                Badges: {selectedAssessment.badgesEarned?.length || 0}<br/>
+                {selectedAssessment.badgesEarned?.map(badge => badge.icon).join(' ') || 'None'}
+              </div>
+            </div>
+            
+            {selectedAssessment.badgesEarned?.length > 0 && (
+              <div>
+                <h4 style={{ color: 'white', marginBottom: '1rem' }}>🏅 Badges Earned:</h4>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  {selectedAssessment.badgesEarned.map((badge, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        background: 'rgba(255,255,255,0.1)',
+                        borderRadius: '10px',
+                        padding: '0.8rem',
+                        textAlign: 'center',
+                        minWidth: '100px'
+                      }}
+                    >
+                      <div style={{ fontSize: '1.5rem', marginBottom: '0.3rem' }}>{badge.icon}</div>
+                      <div style={{ color: 'white', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                        {badge.name}
+                      </div>
+                      <div style={{ color: '#00ff41', fontSize: '0.7rem' }}>
+                        +{badge.points} pts
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

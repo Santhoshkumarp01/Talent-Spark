@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { GameManager } from '../components/gamification/GameManager'
 
 interface ReviewProps {
   onNext: () => void
@@ -14,6 +15,8 @@ const Review: React.FC<ReviewProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [submissionId, setSubmissionId] = useState<string>('')
+  const [newBadges, setNewBadges] = useState<any[]>([])
+  const [pointsEarned, setPointsEarned] = useState(0)
 
   // Use REAL analysis results (not fake data)
   const {
@@ -40,6 +43,37 @@ const Review: React.FC<ReviewProps> = ({
 
   const grade = calculateGrade(totalReps, formScore, faceVerification.confidence)
   const faceVerificationPassed = faceVerification.confidence >= 70
+
+  // Gamification Effect
+  useEffect(() => {
+    if (analysisResults && profileData) {
+      // Get user's assessment history
+      const userAssessments = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key?.startsWith('assessment_')) {
+          try {
+            const data = JSON.parse(localStorage.getItem(key)!)
+            if (data.profileData.name === profileData.name) {
+              userAssessments.push(data)
+            }
+          } catch (error) {
+            continue
+          }
+        }
+      }
+      
+      // Check for new badges
+      const assessmentData = { grade, analysisResults, selectedWorkout }
+      const badges = GameManager.checkBadgeUnlocks(assessmentData, userAssessments)
+      setNewBadges(badges)
+      
+      // Calculate points earned
+      const basePoints = GameManager.calculateOverallScore(grade, totalReps, formScore)
+      const badgePoints = badges.reduce((total, badge) => total + badge.points, 0)
+      setPointsEarned(basePoints + badgePoints)
+    }
+  }, [analysisResults, profileData, grade, totalReps, formScore])
 
   const getGradeColor = (grade: string): string => {
     switch (grade) {
@@ -88,7 +122,12 @@ const Review: React.FC<ReviewProps> = ({
       grade,
       faceVerificationPassed,
       submittedAt: new Date().toISOString(),
-      status: faceVerificationPassed ? 'verified' : 'pending_review'
+      status: faceVerificationPassed ? 'verified' : 'pending_review',
+      
+      // NEW: Add gamification data
+      badgesEarned: newBadges,
+      pointsEarned: pointsEarned,
+      overallScore: GameManager.calculateOverallScore(grade, totalReps, formScore, newBadges)
     }
     
     try {
@@ -156,8 +195,11 @@ const Review: React.FC<ReviewProps> = ({
             <div style={{ color: 'white', fontSize: '1rem', marginBottom: '1rem' }}>
               <strong>Status:</strong> {faceVerificationPassed ? '✅ Verified' : '⏳ Pending Review'}
             </div>
-            <div style={{ color: 'white', fontSize: '1rem' }}>
+            <div style={{ color: 'white', fontSize: '1rem', marginBottom: '1rem' }}>
               <strong>Grade:</strong> <span style={{ color: getGradeColor(grade) }}>{grade}</span>
+            </div>
+            <div style={{ color: 'white', fontSize: '1rem' }}>
+              <strong>Points Earned:</strong> <span style={{ color: '#feca57' }}>+{pointsEarned}</span>
             </div>
           </div>
 
@@ -286,6 +328,60 @@ const Review: React.FC<ReviewProps> = ({
           </p>
         </div>
 
+        {/* Badge Unlock Animation - NEW GAMIFICATION FEATURE */}
+        {newBadges.length > 0 && (
+          <div style={{
+            background: 'rgba(0,255,65,0.1)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: '30px',
+            padding: '2rem',
+            marginBottom: '2rem',
+            border: '2px solid rgba(0,255,65,0.3)',
+            textAlign: 'center',
+            animation: 'bounce 1s infinite'
+          }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎉</div>
+            <h2 style={{ color: '#00ff41', fontSize: '1.8rem', marginBottom: '1rem' }}>
+              New Achievement{newBadges.length > 1 ? 's' : ''} Unlocked!
+            </h2>
+            
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '1rem',
+              flexWrap: 'wrap',
+              marginBottom: '1rem'
+            }}>
+              {newBadges.map(badge => (
+                <div
+                  key={badge.id}
+                  style={{
+                    background: 'rgba(255,255,255,0.1)',
+                    borderRadius: '15px',
+                    padding: '1rem',
+                    minWidth: '150px',
+                    animation: 'glow 2s ease-in-out infinite alternate'
+                  }}
+                >
+                  <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>{badge.icon}</div>
+                  <div style={{ color: 'white', fontWeight: 'bold', fontSize: '0.9rem', marginBottom: '0.3rem' }}>
+                    {badge.name}
+                  </div>
+                  <div style={{ color: '#00ff41', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                    +{badge.points} bonus points!
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: '1rem' }}>
+              Total bonus: <span style={{ color: '#00ff41', fontWeight: 'bold' }}>
+                +{newBadges.reduce((total, badge) => total + badge.points, 0)} points
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Stats Grid */}
         <div style={{
           display: 'grid',
@@ -316,11 +412,11 @@ const Review: React.FC<ReviewProps> = ({
               suffix: '%'
             },
             { 
-              label: 'Duration', 
-              value: formatDuration(duration), 
-              icon: '⏱️',
+              label: 'Points Earned', 
+              value: pointsEarned.toLocaleString(), 
+              icon: '💎',
               color: '#ff6b6b',
-              suffix: ''
+              suffix: ' pts'
             }
           ].map((stat, index) => (
             <div
@@ -435,6 +531,19 @@ const Review: React.FC<ReviewProps> = ({
                 {faceVerificationPassed ? 'Auto-Verified' : 'Manual Review Required'}
               </span>
             </div>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              color: 'white',
+              fontSize: '1rem'
+            }}>
+              <span>Duration:</span>
+              <span style={{ fontWeight: 'bold' }}>
+                {formatDuration(duration)}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -487,6 +596,12 @@ const Review: React.FC<ReviewProps> = ({
             {averageDepth < 70 && (
               <div style={{ color: '#feca57', fontSize: '1rem' }}>
                 ⚡ Work on achieving greater depth in your {selectedWorkout}
+              </div>
+            )}
+
+            {newBadges.length > 0 && (
+              <div style={{ color: '#00ff41', fontSize: '1rem' }}>
+                🎉 You unlocked {newBadges.length} new badge{newBadges.length > 1 ? 's' : ''}! Check the leaderboard to see your ranking!
               </div>
             )}
           </div>
@@ -558,6 +673,17 @@ const Review: React.FC<ReviewProps> = ({
       </div>
 
       <style jsx>{`
+        @keyframes bounce {
+          0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+          40% { transform: translateY(-10px); }
+          60% { transform: translateY(-5px); }
+        }
+        
+        @keyframes glow {
+          from { box-shadow: 0 0 20px rgba(0,255,65,0.5); }
+          to { box-shadow: 0 0 30px rgba(0,255,65,0.8); }
+        }
+        
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }

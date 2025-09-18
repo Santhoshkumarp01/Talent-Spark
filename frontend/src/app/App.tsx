@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react' // ✅ This must be at the very top
+import React, { useState, useEffect } from 'react'
 import Home from '../screens/Home'
 import FaceCapture from '../screens/FaceCapture'
 import WorkoutSelection from '../screens/WorkoutSelection'
 import VideoUpload from '../screens/VideoUpload'
 import Review from '../screens/Review'
 import Sync from '../screens/Sync'
-import Dashboard from "../screens/Admin/Dashboard";  // ✅ Correct path
+import Dashboard from '../screens/Admin/Dashboard'
+import Leaderboard from '../screens/Leaderboard'
 
-
-type Screen = 'home' | 'faceCapture' | 'workoutSelection' | 'videoUpload' | 'review' | 'sync' | 'admin'
+type Screen = 'home' | 'faceCapture' | 'workoutSelection' | 'videoUpload' | 'review' | 'sync' | 'admin' | 'leaderboard'
 
 const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home')
@@ -22,6 +22,7 @@ const App: React.FC = () => {
   const [faceData, setFaceData] = useState<string>('')
   const [selectedWorkout, setSelectedWorkout] = useState<'squats' | 'pushups'>('squats')
   const [analysisResults, setAnalysisResults] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<string>('')
 
   // Handle admin route via hash
   useEffect(() => {
@@ -74,8 +75,13 @@ const App: React.FC = () => {
         return (
           <Home 
             onNext={() => navigateTo('faceCapture')} 
-            onProfileUpdate={setProfileData}
+            onProfileUpdate={(data) => {
+              setProfileData(data)
+              setCurrentUser(data.name)
+            }}
             onAdminAccess={() => navigateTo('admin')}
+            onLeaderboardAccess={() => navigateTo('leaderboard')}
+            currentUser={currentUser}
           />
         )
         
@@ -140,13 +146,25 @@ const App: React.FC = () => {
             onBack={() => navigateTo('home')} 
           />
         )
+
+      case 'leaderboard':
+        return (
+          <Leaderboard 
+            onBack={() => navigateTo('home')} 
+          />
+        )
         
       default:
         return (
           <Home 
             onNext={() => navigateTo('faceCapture')} 
-            onProfileUpdate={setProfileData}
+            onProfileUpdate={(data) => {
+              setProfileData(data)
+              setCurrentUser(data.name)
+            }}
             onAdminAccess={() => navigateTo('admin')}
+            onLeaderboardAccess={() => navigateTo('leaderboard')}
+            currentUser={currentUser}
           />
         )
     }

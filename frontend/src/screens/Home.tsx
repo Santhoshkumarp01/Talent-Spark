@@ -1,12 +1,21 @@
 import React, { useState, useEffect } from 'react'
+import { GameManager } from '../components/gamification/GameManager'
 
 interface HomeProps {
   onNext: () => void
   onProfileUpdate: (data: any) => void
   onAdminAccess: () => void
+  onLeaderboardAccess: () => void
+  currentUser: string
 }
 
-const Home: React.FC<HomeProps> = ({ onNext, onProfileUpdate, onAdminAccess }) => {
+const Home: React.FC<HomeProps> = ({ 
+  onNext, 
+  onProfileUpdate, 
+  onAdminAccess, 
+  onLeaderboardAccess,
+  currentUser 
+}) => {
   const [name, setName] = useState('')
   const [age, setAge] = useState('')
   const [gender, setGender] = useState('')
@@ -15,6 +24,7 @@ const Home: React.FC<HomeProps> = ({ onNext, onProfileUpdate, onAdminAccess }) =
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [showInstallPrompt, setShowInstallPrompt] = useState(false)
   const [showAdminButton, setShowAdminButton] = useState(false)
+  const [userStats, setUserStats] = useState<any>(null)
 
   useEffect(() => {
     // PWA Install Prompt
@@ -25,9 +35,8 @@ const Home: React.FC<HomeProps> = ({ onNext, onProfileUpdate, onAdminAccess }) =
     }
     window.addEventListener('beforeinstallprompt', handler)
 
-    // Show admin button after 3 seconds or on key press
+    // Show admin button after 3 seconds
     const showAdmin = () => setShowAdminButton(true)
-    
     const adminTimer = setTimeout(showAdmin, 3000)
     
     const keyHandler = (e: KeyboardEvent) => {
@@ -45,6 +54,14 @@ const Home: React.FC<HomeProps> = ({ onNext, onProfileUpdate, onAdminAccess }) =
     }
   }, [])
 
+  // Load user stats when currentUser changes
+  useEffect(() => {
+    if (currentUser) {
+      const stats = GameManager.getUserStats(currentUser)
+      setUserStats(stats)
+    }
+  }, [currentUser])
+
   const handleInstallPWA = async () => {
     if (!deferredPrompt) return
     deferredPrompt.prompt()
@@ -60,7 +77,7 @@ const Home: React.FC<HomeProps> = ({ onNext, onProfileUpdate, onAdminAccess }) =
         age: parseInt(age), 
         gender, 
         height: parseInt(height), 
-        weight: parseInt(weight) 
+        weight: parseInt(weight)
       })
       onNext()
     }
@@ -78,7 +95,6 @@ const Home: React.FC<HomeProps> = ({ onNext, onProfileUpdate, onAdminAccess }) =
       {showAdminButton && (
         <button
           onClick={onAdminAccess}
-          onDoubleClick={onAdminAccess}
           style={{
             position: 'fixed',
             top: '20px',
@@ -92,16 +108,7 @@ const Home: React.FC<HomeProps> = ({ onNext, onProfileUpdate, onAdminAccess }) =
             cursor: 'pointer',
             fontSize: '0.9rem',
             fontWeight: 'bold',
-            zIndex: 1000,
-            transition: 'all 0.3s ease'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.2)'
-            e.currentTarget.style.transform = 'scale(1.05)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
-            e.currentTarget.style.transform = 'scale(1)'
+            zIndex: 1000
           }}
         >
           🏛️ Admin Panel
@@ -117,25 +124,14 @@ const Home: React.FC<HomeProps> = ({ onNext, onProfileUpdate, onAdminAccess }) =
           marginBottom: '2rem',
           boxShadow: '0 20px 40px rgba(255,107,107,0.3)'
         }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between' 
-          }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <span style={{ fontSize: '2rem', marginRight: '1rem' }}>🚀</span>
               <div>
-                <div style={{ 
-                  fontWeight: 'bold', 
-                  color: 'white', 
-                  fontSize: '1.1rem' 
-                }}>
+                <div style={{ fontWeight: 'bold', color: 'white', fontSize: '1.1rem' }}>
                   Install Talent Spark PWA
                 </div>
-                <div style={{ 
-                  color: 'rgba(255,255,255,0.9)', 
-                  fontSize: '0.9rem' 
-                }}>
+                <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.9rem' }}>
                   Offline AI fitness verification system
                 </div>
               </div>
@@ -204,55 +200,66 @@ const Home: React.FC<HomeProps> = ({ onNext, onProfileUpdate, onAdminAccess }) =
         }}>
           🔐 Secure AI-powered fitness verification with face authentication
         </p>
+      </div>
 
-        {/* Stats/Info Cards */}
+      {/* User Stats Widget - Only show if user has data */}
+      {userStats && (
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-          gap: '1rem',
-          maxWidth: '600px',
-          margin: '2rem auto'
+          background: 'rgba(255,255,255,0.15)',
+          backdropFilter: 'blur(20px)',
+          borderRadius: '25px',
+          padding: '2rem',
+          marginBottom: '2rem',
+          border: '1px solid rgba(255,255,255,0.2)'
         }}>
-          <div style={{
-            background: 'rgba(255,255,255,0.1)',
-            backdropFilter: 'blur(10px)',
-            borderRadius: '15px',
-            padding: '1rem',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🤖</div>
-            <div style={{ color: 'white', fontSize: '0.9rem', fontWeight: 'bold' }}>
-              AI Analysis
-            </div>
-          </div>
+          <h3 style={{ color: 'white', textAlign: 'center', marginBottom: '1rem' }}>
+            👤 Your TalentSpark Profile
+          </h3>
           
           <div style={{
-            background: 'rgba(255,255,255,0.1)',
-            backdropFilter: 'blur(10px)',
-            borderRadius: '15px',
-            padding: '1rem',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+            gap: '1rem',
             textAlign: 'center'
           }}>
-            <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🔒</div>
-            <div style={{ color: 'white', fontSize: '0.9rem', fontWeight: 'bold' }}>
-              Face Verified
+            <div>
+              <div style={{ color: '#FFD700', fontSize: '1.5rem', fontWeight: 'bold' }}>
+                #{userStats.currentRank}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.8rem' }}>
+                Rank
+              </div>
             </div>
-          </div>
-          
-          <div style={{
-            background: 'rgba(255,255,255,0.1)',
-            backdropFilter: 'blur(10px)',
-            borderRadius: '15px',
-            padding: '1rem',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📊</div>
-            <div style={{ color: 'white', fontSize: '0.9rem', fontWeight: 'bold' }}>
-              Real-time Stats
+            
+            <div>
+              <div style={{ color: '#00ff41', fontSize: '1.5rem', fontWeight: 'bold' }}>
+                {userStats.totalPoints.toLocaleString()}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.8rem' }}>
+                Points
+              </div>
+            </div>
+            
+            <div>
+              <div style={{ color: '#feca57', fontSize: '1.5rem', fontWeight: 'bold' }}>
+                {userStats.badgesEarned.length}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.8rem' }}>
+                Badges
+              </div>
+            </div>
+            
+            <div>
+              <div style={{ color: '#ff6b6b', fontSize: '1.5rem', fontWeight: 'bold' }}>
+                {userStats.totalAssessments}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.8rem' }}>
+                Tests
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Profile Form */}
       <div style={{
@@ -455,6 +462,27 @@ const Home: React.FC<HomeProps> = ({ onNext, onProfileUpdate, onAdminAccess }) =
           }}
         >
           🔐 Next: Face Verification
+        </button>
+
+        {/* Leaderboard Button */}
+        <button
+          onClick={onLeaderboardAccess}
+          style={{
+            width: '100%',
+            marginTop: '1rem',
+            padding: '1rem',
+            border: 'none',
+            borderRadius: '15px',
+            fontSize: '1rem',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            background: 'linear-gradient(135deg, #feca57 0%, #ff9f43 100%)',
+            color: 'white',
+            boxShadow: '0 10px 20px rgba(254,202,87,0.3)',
+            transition: 'all 0.3s ease'
+          }}
+        >
+          🏆 View Leaderboard
         </button>
 
         {/* Helper Text */}
