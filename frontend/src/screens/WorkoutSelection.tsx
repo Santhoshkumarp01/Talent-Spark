@@ -3,17 +3,17 @@ import React, { useState } from 'react'
 interface WorkoutSelectionProps {
   onNext: () => void
   onBack: () => void
-  onWorkoutSelect: (workout: 'squats' | 'pushups') => void
+  onWorkoutSelect: (workout: 'squats' | 'pushups' | 'situps' | 'vertical-jumps' | 'shuttle-run' | 'endurance-runs') => void
 }
 
 const WorkoutSelection: React.FC<WorkoutSelectionProps> = ({ onNext, onBack, onWorkoutSelect }) => {
-  const [selectedWorkout, setSelectedWorkout] = useState<'squats' | 'pushups' | null>(null)
+  const [selectedWorkout, setSelectedWorkout] = useState<'squats' | 'pushups' | 'situps' | 'vertical-jumps' | 'shuttle-run' | 'endurance-runs' | null>(null)
 
   const workouts = [
     {
       id: 'squats' as const,
       name: 'Squats',
-      icon: '🏋️',
+      icon: '🏋️‍♀️',
       description: 'Lower body strength assessment',
       difficulty: 'Beginner to Advanced',
       duration: '2-5 minutes',
@@ -27,10 +27,46 @@ const WorkoutSelection: React.FC<WorkoutSelectionProps> = ({ onNext, onBack, onW
       difficulty: 'Beginner to Advanced',
       duration: '2-5 minutes',
       muscles: 'Chest, Arms, Core'
+    },
+    {
+      id: 'situps' as const,
+      name: 'Sit-ups',
+      icon: '🏃',
+      description: 'Core strength assessment',
+      difficulty: 'Beginner to Advanced',
+      duration: '2-5 minutes',
+      muscles: 'Abs, Core, Hip Flexors'
+    },
+    {
+      id: 'vertical-jumps' as const,
+      name: 'Vertical Jumps',
+      icon: '⬆️‍♀️',
+      description: 'Explosive power assessment',
+      difficulty: 'Intermediate to Advanced',
+      duration: '1-3 minutes',
+      muscles: 'Legs, Glutes, Calves, Core'
+    },
+    {
+      id: 'shuttle-run' as const,
+      name: 'Shuttle Run',
+      icon: '🏃‍♂️',
+      description: 'Agility and speed assessment',
+      difficulty: 'Intermediate to Advanced',
+      duration: '1-4 minutes',
+      muscles: 'Full Body, Cardio, Coordination'
+    },
+    {
+      id: 'endurance-runs' as const,
+      name: 'Endurance Runs',
+      icon: '🏃‍♀️',
+      description: 'Cardiovascular endurance assessment',
+      difficulty: 'Beginner to Advanced',
+      duration: '3-10 minutes',
+      muscles: 'Full Body, Cardio, Stamina'
     }
   ]
 
-  const handleWorkoutSelect = (workoutId: 'squats' | 'pushups') => {
+  const handleWorkoutSelect = (workoutId: 'squats' | 'pushups' | 'situps' | 'vertical-jumps' | 'shuttle-run' | 'endurance-runs') => {
     setSelectedWorkout(workoutId)
     onWorkoutSelect(workoutId)
   }
@@ -57,7 +93,7 @@ const WorkoutSelection: React.FC<WorkoutSelectionProps> = ({ onNext, onBack, onW
           <span>←</span> Back
         </button>
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: 'white' }}>
-          🎯 Select Workout
+          🏋️ Select Workout
         </h1>
         <div style={{ width: '100px' }} />
       </div>
@@ -76,9 +112,9 @@ const WorkoutSelection: React.FC<WorkoutSelectionProps> = ({ onNext, onBack, onW
 
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
-        gap: '2rem',
-        maxWidth: '800px',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+        gap: '1.5rem',
+        maxWidth: '1400px',
         margin: '0 auto 3rem'
       }}>
         {workouts.map((workout) => (
@@ -100,7 +136,8 @@ const WorkoutSelection: React.FC<WorkoutSelectionProps> = ({ onNext, onBack, onW
                 ? '0 20px 40px rgba(0,255,65,0.3)' 
                 : '0 20px 40px rgba(0,0,0,0.1)',
               transition: 'all 0.3s ease',
-              transform: selectedWorkout === workout.id ? 'translateY(-5px)' : 'none'
+              transform: selectedWorkout === workout.id ? 'translateY(-5px)' : 'none',
+              position: 'relative'
             }}
           >
             <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>
@@ -157,7 +194,56 @@ const WorkoutSelection: React.FC<WorkoutSelectionProps> = ({ onNext, onBack, onW
                 fontWeight: 'bold',
                 fontSize: '0.9rem'
               }}>
-                ✅ Selected
+                ✓ Selected
+              </div>
+            )}
+            
+            {/* Special indicators for workout types */}
+            {workout.id === 'vertical-jumps' && (
+              <div style={{
+                position: 'absolute',
+                top: '1rem',
+                right: '1rem',
+                background: 'linear-gradient(135deg, #ff6b6b, #ee5a6f)',
+                color: 'white',
+                padding: '0.3rem 0.8rem',
+                borderRadius: '15px',
+                fontSize: '0.8rem',
+                fontWeight: 'bold'
+              }}>
+                POWER
+              </div>
+            )}
+            
+            {workout.id === 'shuttle-run' && (
+              <div style={{
+                position: 'absolute',
+                top: '1rem',
+                right: '1rem',
+                background: 'linear-gradient(135deg, #4facfe, #00f2fe)',
+                color: 'white',
+                padding: '0.3rem 0.8rem',
+                borderRadius: '15px',
+                fontSize: '0.8rem',
+                fontWeight: 'bold'
+              }}>
+                AGILITY
+              </div>
+            )}
+            
+            {workout.id === 'endurance-runs' && (
+              <div style={{
+                position: 'absolute',
+                top: '1rem',
+                right: '1rem',
+                background: 'linear-gradient(135deg, #fa709a, #fee140)',
+                color: 'white',
+                padding: '0.3rem 0.8rem',
+                borderRadius: '15px',
+                fontSize: '0.8rem',
+                fontWeight: 'bold'
+              }}>
+                NEW
               </div>
             )}
           </div>
@@ -183,7 +269,7 @@ const WorkoutSelection: React.FC<WorkoutSelectionProps> = ({ onNext, onBack, onW
             transition: 'all 0.3s ease'
           }}
         >
-          📁 Upload Video
+          📹 Upload Video
         </button>
       </div>
     </div>

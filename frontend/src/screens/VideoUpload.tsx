@@ -5,7 +5,7 @@ import { FaceDetector } from '../components/analysis/FaceDetector'
 interface VideoUploadProps {
   onNext: () => void
   onBack: () => void
-  selectedWorkout: 'squats' | 'pushups'
+  selectedWorkout: 'squats' | 'pushups' | 'situps' | 'vertical-jumps' | 'shuttle-run' | 'endurance-runs'
   faceData: string
   onAnalysisComplete: (results: any) => void
 }
@@ -20,6 +20,28 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
   const [progress, setProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+
+  // Get workout-specific display information
+  const getWorkoutInfo = () => {
+    switch (selectedWorkout) {
+      case 'squats':
+        return { icon: '🏋️‍♀️', name: 'Squat' }
+      case 'pushups':
+        return { icon: '💪', name: 'Push-up' }
+      case 'situps':
+        return { icon: '🏃', name: 'Sit-up' }
+      case 'vertical-jumps':
+        return { icon: '⬆️', name: 'Vertical Jump' }
+      case 'shuttle-run':
+        return { icon: '🏃‍♂️', name: 'Shuttle Run' }
+      case 'endurance-runs':
+        return { icon: '🏃‍♀️', name: 'Endurance Run' }
+      default:
+        return { icon: '💪', name: 'Exercise' }
+    }
+  }
+
+  const workoutInfo = getWorkoutInfo()
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -60,12 +82,23 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
       
       setAnalysisStep('Initializing face verification...')
       const faceDetector = new FaceDetector(faceData)
-      await faceDetector.initialize() // This won't crash now
+      await faceDetector.initialize()
       
       console.log('Analyzers initialized, processing video...')
-      setAnalysisStep('Detecting poses and counting reps')
       
-      // Analyze video
+      // Set workout-specific analysis step message
+      const analysisMessages = {
+        'squats': 'Detecting squats and analyzing form',
+        'pushups': 'Counting push-ups and checking technique',
+        'situps': 'Analyzing sit-ups and core engagement',
+        'vertical-jumps': 'Measuring jump height and explosiveness',
+        'shuttle-run': 'Tracking lateral movement and measuring agility',
+        'endurance-runs': 'Analyzing running form and tracking pace'
+      }
+      
+      setAnalysisStep(analysisMessages[selectedWorkout] || `Detecting ${selectedWorkout} and counting reps`)
+      
+      // Analyze video with the selected workout type
       const results = await analyzer.analyzeVideo(videoFile, selectedWorkout, faceData)
       
       clearInterval(progressTimer)
@@ -86,31 +119,28 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
     }
   }
 
-  const analyzeVideoWithMediaPipe = async (video: HTMLVideoElement, workout: string, referenceFace: string) => {
-    // This is where real MediaPipe analysis would happen
-    // For now, simulate processing time and return realistic results
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const results = {
-          totalReps: workout === 'squats' ? Math.floor(Math.random() * 15) + 15 : Math.floor(Math.random() * 20) + 10,
-          averageDepth: Math.floor(Math.random() * 30) + 70,
-          formScore: Math.floor(Math.random() * 25) + 75,
-          duration: Math.floor(video.duration || 120),
-          faceVerification: {
-            faceDetected: true,
-            matchConfidence: Math.floor(Math.random() * 15) + 85,
-            detectionFrames: Math.floor((video.duration || 120) * 0.8)
-          },
-          workoutType: workout,
-          timestamp: Date.now()
-        }
-        resolve(results)
-      }, 5000) // 5 second analysis simulation
-    })
-  }
-
   const triggerUpload = () => {
     fileInputRef.current?.click()
+  }
+
+  // Get workout-specific instructions
+  const getWorkoutInstructions = () => {
+    switch (selectedWorkout) {
+      case 'squats':
+        return 'Make sure your full body is visible and perform squats with proper form'
+      case 'pushups':
+        return 'Position camera to capture your full body during push-ups'
+      case 'situps':
+        return 'Ensure your torso and legs are clearly visible in the frame'
+      case 'vertical-jumps':
+        return 'Make sure there\'s enough vertical space and your full body is in frame for jump analysis'
+      case 'shuttle-run':
+        return 'Position camera to capture your lateral movement with enough horizontal space to track side-to-side motion'
+      case 'endurance-runs':
+        return 'Position camera to capture your full body running motion with enough space to track your stride and form'
+      default:
+        return 'Position yourself so your full body is visible in the frame'
+    }
   }
 
   return (
@@ -160,7 +190,7 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
           alignItems: 'center',
           gap: '0.5rem'
         }}>
-          📁 Upload {selectedWorkout === 'squats' ? 'Squat' : 'Push-up'} Video
+          {workoutInfo.icon} Upload {workoutInfo.name} Video
         </h1>
         
         <div style={{ width: '100px' }} />
@@ -206,8 +236,7 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
             maxWidth: '600px',
             margin: '0 auto'
           }}>
-            Upload your {selectedWorkout} video. Our AI will count reps, analyze form, and verify 
-            your face for authenticity.
+            {getWorkoutInstructions()}. Our AI will count reps, analyze form, and verify your identity.
           </p>
         </div>
 
@@ -256,7 +285,7 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
                 marginBottom: '1rem',
                 opacity: 0.8
               }}>
-                {selectedWorkout === 'squats' ? '🏋️' : '💪'}
+                {workoutInfo.icon}
               </div>
               <h3 style={{
                 color: 'white',
@@ -264,7 +293,7 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
                 fontWeight: 'bold',
                 marginBottom: '1rem'
               }}>
-                Upload {selectedWorkout === 'squats' ? 'Squat' : 'Push-up'} Video
+                Upload {workoutInfo.name} Video
               </h3>
               <p style={{
                 color: 'rgba(255,255,255,0.7)',
@@ -371,7 +400,7 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
                           marginBottom: '0.5rem',
                           fontWeight: 'bold'
                         }}>
-                          • {analysisStep || 'Detecting poses and counting reps'}
+                          • {analysisStep || `Detecting ${selectedWorkout} and counting reps`}
                         </div>
                         <div style={{
                           color: 'rgba(255,255,255,0.7)',
@@ -460,24 +489,95 @@ const VideoUpload: React.FC<VideoUploadProps> = ({
             <h3 style={{ color: 'white', fontSize: '1.5rem', marginBottom: '1rem' }}>
               ✅ Analysis Complete!
             </h3>
+            
+            {/* Dynamic Results Based on Workout Type */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
               <div style={{ color: 'white' }}>
                 <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{analysisResults.totalReps}</div>
-                <div>Reps</div>
+                <div>
+                  {selectedWorkout === 'vertical-jumps' ? 'Jumps' : 
+                   selectedWorkout === 'shuttle-run' ? 'Shuttles' : 
+                   selectedWorkout === 'endurance-runs' ? 'Steps' : 'Reps'}
+                </div>
               </div>
+              
               <div style={{ color: 'white' }}>
                 <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{analysisResults.formScore}%</div>
                 <div>Form Score</div>
               </div>
+              
+              {selectedWorkout === 'vertical-jumps' && analysisResults.maxHeight !== undefined && (
+                <>
+                  <div style={{ color: 'white' }}>
+                    <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{analysisResults.maxHeight}</div>
+                    <div>Max Height</div>
+                  </div>
+                  {analysisResults.hangTime !== undefined && (
+                    <div style={{ color: 'white' }}>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{analysisResults.hangTime}s</div>
+                      <div>Hang Time</div>
+                    </div>
+                  )}
+                </>
+              )}
+              
+              {selectedWorkout === 'shuttle-run' && (
+                <>
+                  {analysisResults.averageSpeed !== undefined && (
+                    <div style={{ color: 'white' }}>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{analysisResults.averageSpeed}</div>
+                      <div>Avg Speed</div>
+                    </div>
+                  )}
+                  {analysisResults.totalDistance !== undefined && (
+                    <div style={{ color: 'white' }}>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{analysisResults.totalDistance}m</div>
+                      <div>Distance</div>
+                    </div>
+                  )}
+                </>
+              )}
+              
+              {selectedWorkout === 'endurance-runs' && (
+                <>
+                  {analysisResults.averagePace !== undefined && (
+                    <div style={{ color: 'white' }}>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{analysisResults.averagePace}</div>
+                      <div>Avg Pace (SPM)</div>
+                    </div>
+                  )}
+                  {analysisResults.cadence !== undefined && (
+                    <div style={{ color: 'white' }}>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{analysisResults.cadence}</div>
+                      <div>Cadence</div>
+                    </div>
+                  )}
+                  {analysisResults.strideLength !== undefined && (
+                    <div style={{ color: 'white' }}>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{analysisResults.strideLength}m</div>
+                      <div>Stride Length</div>
+                    </div>
+                  )}
+                  {analysisResults.totalDistance !== undefined && (
+                    <div style={{ color: 'white' }}>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{analysisResults.totalDistance}m</div>
+                      <div>Total Distance</div>
+                    </div>
+                  )}
+                </>
+              )}
+              
               <div style={{ color: 'white' }}>
-                <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{analysisResults.faceVerification.matchConfidence}%</div>
+                <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{analysisResults.faceVerification.confidence}%</div>
                 <div>Face Match</div>
               </div>
+              
               <div style={{ color: 'white' }}>
                 <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{analysisResults.duration}s</div>
                 <div>Duration</div>
               </div>
             </div>
+            
             <button
               onClick={onNext}
               style={{

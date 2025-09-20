@@ -1,6 +1,10 @@
 import { Pose } from '@mediapipe/pose'
 import { SquatAnalyzer } from './SquatAnalyzer'
 import { PushupAnalyzer } from './PushupAnalyzer'
+import { SitupAnalyzer } from './SitupAnalyzer'
+import { VerticalJumpAnalyzer } from './VerticalJumpAnalyzer'
+import { ShuttleRunAnalyzer } from './ShuttleRunAnalyzer'
+import { EnduranceRunAnalyzer } from './EnduranceRunAnalyzer'
 import { FaceDetector } from './FaceDetector'
 
 export interface PoseLandmark {
@@ -13,6 +17,14 @@ export interface PoseLandmark {
 export interface AnalysisResults {
   totalReps: number
   averageDepth: number
+  maxHeight?: number
+  averageHeight?: number
+  hangTime?: number
+  averageSpeed?: number
+  totalDistance?: number
+  averagePace?: number
+  cadence?: number
+  strideLength?: number
   formScore: number
   duration: number
   faceVerification: {
@@ -21,7 +33,7 @@ export interface AnalysisResults {
     continuousFrames: number
   }
   timestamps: number[]
-  workoutType: 'squats' | 'pushups'
+  workoutType: 'squats' | 'pushups' | 'situps' | 'vertical-jumps' | 'shuttle-run' | 'endurance-runs'
 }
 
 export class RealPoseAnalyzer {
@@ -63,7 +75,7 @@ export class RealPoseAnalyzer {
 
   async analyzeVideo(
     videoFile: File, 
-    workoutType: 'squats' | 'pushups',
+    workoutType: 'squats' | 'pushups' | 'situps' | 'vertical-jumps' | 'shuttle-run' | 'endurance-runs',
     referenceFaceData: string
   ): Promise<AnalysisResults> {
     if (!this.isInitialized || !this.pose) {
@@ -85,7 +97,7 @@ export class RealPoseAnalyzer {
 
   private async processVideoFrames(
     video: HTMLVideoElement, 
-    workoutType: 'squats' | 'pushups',
+    workoutType: 'squats' | 'pushups' | 'situps' | 'vertical-jumps' | 'shuttle-run' | 'endurance-runs',
     referenceFaceData: string
   ): Promise<AnalysisResults> {
     const canvas = document.createElement('canvas')
@@ -93,9 +105,31 @@ export class RealPoseAnalyzer {
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
 
-    const analyzer = workoutType === 'squats' 
-      ? new SquatAnalyzer() 
-      : new PushupAnalyzer()
+    // Select appropriate analyzer based on workout type
+    let analyzer: SquatAnalyzer | PushupAnalyzer | SitupAnalyzer | VerticalJumpAnalyzer | ShuttleRunAnalyzer | EnduranceRunAnalyzer
+    
+    switch (workoutType) {
+      case 'squats':
+        analyzer = new SquatAnalyzer()
+        break
+      case 'pushups':
+        analyzer = new PushupAnalyzer()
+        break
+      case 'situps':
+        analyzer = new SitupAnalyzer()
+        break
+      case 'vertical-jumps':
+        analyzer = new VerticalJumpAnalyzer()
+        break
+      case 'shuttle-run':
+        analyzer = new ShuttleRunAnalyzer()
+        break
+      case 'endurance-runs':
+        analyzer = new EnduranceRunAnalyzer()
+        break
+      default:
+        throw new Error(`Unsupported workout type: ${workoutType}`)
+    }
     
     const faceDetector = new FaceDetector(referenceFaceData)
     await faceDetector.initialize()
@@ -166,16 +200,53 @@ export class RealPoseAnalyzer {
   private compileFinalResults(allResults: any[], workoutType: string, duration: number): AnalysisResults {
     let totalReps = 0
     let depths: number[] = []
+    let heights: number[] = []
+    let speeds: number[] = []
+    let distances: number[] = []
+    let paces: number[] = []
+    let cadences: number[] = []
+    let strideLengths: number[] = []
     let formScores: number[] = []
     let faceDetections = 0
     let faceConfidences: number[] = []
+    let hangTimes: number[] = []
 
     allResults.forEach(result => {
       if (result.movement) {
-        totalReps = Math.max(totalReps, result.movement.repCount)
-        if (result.movement.depth > 0) {
-          depths.push(result.movement.depth)
+        totalReps = Math.max(totalReps, result.movement.repCount || result.movement.stepCount || 0)
+        
+        // Handle different movement metrics based on workout type
+        if (workoutType === 'vertical-jumps') {
+          if (result.movement.currentHeight > 0) {
+            heights.push(result.movement.currentHeight)
+          }
+          if (result.movement.hangTime > 0) {
+            hangTimes.push(result.movement.hangTime)
+          }
+        } else if (workoutType === 'shuttle-run') {
+          if (result.movement.speed > 0) {
+            speeds.push(result.movement.speed)
+          }
+          if (result.movement.distance > 0) {
+            distances.push(result.movement.distance)
+          }
+        } else if (workoutType === 'endurance-runs') {
+          if (result.movement.pace > 0) {
+            paces.push(result.movement.pace)
+          }
+          if (result.movement.cadence > 0) {
+            cadences.push(result.movement.cadence)
+          }
+          if (result.movement.stride > 0) {
+            strideLengths.push(result.movement.stride / 100) // Convert back from percentage
+          }
+        } else {
+          // For squats, pushups, situps
+          if (result.movement.depth > 0) {
+            depths.push(result.movement.depth)
+          }
         }
+        
         if (result.movement.formScore > 0) {
           formScores.push(result.movement.formScore)
         }
@@ -191,6 +262,35 @@ export class RealPoseAnalyzer {
       ? depths.reduce((a, b) => a + b, 0) / depths.length 
       : 0
 
+    const maxHeight = heights.length > 0 ? Math.max(...heights) : undefined
+    const averageHeight = heights.length > 0 
+      ? heights.reduce((a, b) => a + b, 0) / heights.length 
+      : undefined
+
+    const averageHangTime = hangTimes.length > 0 
+      ? hangTimes.reduce((a, b) => a + b, 0) / hangTimes.length 
+      : undefined
+
+    const averageSpeed = speeds.length > 0 
+      ? speeds.reduce((a, b) => a + b, 0) / speeds.length 
+      : undefined
+
+    const totalDistance = distances.length > 0 
+      ? distances.reduce((a, b) => a + b, 0) 
+      : undefined
+
+    const averagePace = paces.length > 0 
+      ? paces.reduce((a, b) => a + b, 0) / paces.length 
+      : undefined
+
+    const averageCadence = cadences.length > 0 
+      ? cadences.reduce((a, b) => a + b, 0) / cadences.length 
+      : undefined
+
+    const averageStrideLength = strideLengths.length > 0 
+      ? strideLengths.reduce((a, b) => a + b, 0) / strideLengths.length 
+      : undefined
+
     const formScore = formScores.length > 0
       ? formScores.reduce((a, b) => a + b, 0) / formScores.length
       : 0
@@ -199,7 +299,7 @@ export class RealPoseAnalyzer {
       ? faceConfidences.reduce((a, b) => a + b, 0) / faceConfidences.length
       : 0
 
-    return {
+    const baseResults = {
       totalReps,
       averageDepth: Math.round(averageDepth),
       formScore: Math.round(formScore),
@@ -210,7 +310,33 @@ export class RealPoseAnalyzer {
         continuousFrames: faceDetections
       },
       timestamps: allResults.map(r => r.timestamp),
-      workoutType: workoutType as 'squats' | 'pushups'
+      workoutType: workoutType as 'squats' | 'pushups' | 'situps' | 'vertical-jumps' | 'shuttle-run' | 'endurance-runs'
     }
+
+    // Add workout-specific metrics
+    if (workoutType === 'vertical-jumps') {
+      return {
+        ...baseResults,
+        maxHeight: maxHeight ? Math.round(maxHeight) : 0,
+        averageHeight: averageHeight ? Math.round(averageHeight) : 0,
+        hangTime: averageHangTime ? Math.round(averageHangTime * 100) / 100 : 0
+      }
+    } else if (workoutType === 'shuttle-run') {
+      return {
+        ...baseResults,
+        averageSpeed: averageSpeed ? Math.round(averageSpeed * 1000) / 1000 : 0,
+        totalDistance: totalDistance ? Math.round(totalDistance * 100) / 100 : 0
+      }
+    } else if (workoutType === 'endurance-runs') {
+      return {
+        ...baseResults,
+        averagePace: averagePace ? Math.round(averagePace) : 0,
+        cadence: averageCadence ? Math.round(averageCadence) : 0,
+        strideLength: averageStrideLength ? Math.round(averageStrideLength * 1000) / 1000 : 0,
+        totalDistance: totalReps && averageStrideLength ? Math.round((totalReps * averageStrideLength * 2) * 100) / 100 : 0
+      }
+    }
+
+    return baseResults
   }
 }
